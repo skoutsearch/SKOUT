@@ -1,0 +1,9 @@
+requests
+python-dotenv
+pandas
+streamlit
+torch
+transformers
+opencv-python
+pillow
+chromadb
