@@ -5,25 +5,36 @@ import time
 import re
 import chromadb
 
+# Ensure project root is on path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from src.ingestion.synergy_client import SynergyClient
-from config.settings import SYNERGY_API_KEY
+
+from config.ncaa_di_mens_basketball import NCAA_DI_MENS_BASKETBALL
+from config.ncaa_dii_mens_basketball import NCAA_DII_MENS_BASKETBALL
+from config.ncaa_diii_mens_basketball import NCAA_DIII_MENS_BASKETBALL
 
 
+# --------------------------------------------------
+# NORMALIZATION
+# --------------------------------------------------
 def normalize(text: str) -> str:
-    """Normalize team names for reliable matching."""
     return re.sub(r'[^a-z0-9]', '', text.lower())
 
 
-TAMU_ALIASES = {
-    "texasam",
-    "texasamaggies",
-    "texasamuniversity",
-    "texasamaggiesmens",
+# --------------------------------------------------
+# DIVISION → CONFERENCE MAP
+# --------------------------------------------------
+DIVISION_MAP = {
+    "DI": NCAA_DI_MENS_BASKETBALL,
+    "DII": NCAA_DII_MENS_BASKETBALL,
+    "DIII": NCAA_DIII_MENS_BASKETBALL,
 }
 
 
+# --------------------------------------------------
+# INGESTER
+# --------------------------------------------------
 class SingleTeamIngester:
     def __init__(self):
         self.client = SynergyClient()
@@ -37,44 +48,47 @@ class SingleTeamIngester:
         )
 
     # --------------------------------------------------
-    # SEASONS
+    # INTERACTIVE SELECTION
     # --------------------------------------------------
-    def get_recent_seasons(self, years_back=6):
-        print("🔍 Fetching available seasons...")
-        response = self.client.get_seasons(league_code="ncaamb")
+    def interactive_select(self):
+        print("\n🏀 NCAA Men's Basketball – Interactive Team Selection\n")
 
-        seasons = []
-        for wrapper in response.get("data", []):
-            season = wrapper.get("data", wrapper)
-            seasons.append({
-                "id": season["id"],
-                "name": season.get("name", ""),
-                "year": season.get("year")
-            })
+        # Division
+        divisions = list(DIVISION_MAP.keys())
+        division = self._prompt_choice("Select Division", divisions)
 
-        if not seasons:
-            raise RuntimeError("No seasons returned by Synergy API")
+        # Conference
+        conferences = sorted(DIVISION_MAP[division].keys())
+        conference = self._prompt_choice("Select Conference", conferences)
 
-        # Sort newest → oldest
-        seasons.sort(key=lambda s: str(s["name"]), reverse=True)
-        selected = seasons[:years_back]
+        # Team
+        teams = DIVISION_MAP[division][conference]
+        team = self._prompt_choice("Select Team", teams)
 
-        print("✅ Using seasons:")
-        for s in selected:
-            print(f"   - {s['name']} ({s['id']})")
+        print(f"\n✅ Selected: {division} → {conference} → {team}")
+        return team
 
-        return selected
+    def _prompt_choice(self, title, options):
+        print(f"\n{title}:")
+        for i, opt in enumerate(options, 1):
+            print(f"  [{i}] {opt}")
+
+        while True:
+            choice = input("> ").strip()
+            if choice.isdigit() and 1 <= int(choice) <= len(options):
+                return options[int(choice) - 1]
+            print("Invalid selection, try again.")
 
     # --------------------------------------------------
-    # TEAM LOOKUP (FIXED)
+    # TEAM ID RESOLUTION
     # --------------------------------------------------
-        def find_texas_am_team_id(self):
-        print("🔍 Resolving Texas A&M team ID...")
+    def resolve_team_id(self, team_name):
+        print(f"\n🔍 Resolving Synergy team ID for {team_name}...")
+
+        normalized_target = normalize(team_name)
 
         skip = 0
         take = 500
-
-        normalized_target = normalize("texasamaggies")
 
         while True:
             response = self.client._get(
@@ -82,18 +96,12 @@ class SingleTeamIngester:
                 params={"take": take, "skip": skip}
             )
 
-            if not response:
+            teams = response.get("data", [])
+            if not teams:
                 break
 
-            team_wrappers = response.get("data", [])
-            if not team_wrappers:
-                break
-
-            for wrapper in team_wrappers:
+            for wrapper in teams:
                 team = wrapper.get("data", wrapper)
-
-                # The Synergy docs show these fields are valid:
-                # id, name, market, alias (if present) :contentReference[oaicite:1]{index=1}
                 name = normalize(team.get("name", ""))
                 market = normalize(team.get("market", ""))
                 alias = normalize(team.get("alias", ""))
@@ -101,30 +109,45 @@ class SingleTeamIngester:
                 combined = f"{market}{name}{alias}"
 
                 if normalized_target in combined:
-                    print(f"✅ Found Texas A&M team: {team.get('market')} {team.get('name')} ({team['id']})")
+                    print(f"✅ Matched Synergy team: {team.get('market')} {team.get('name')}")
                     return team["id"]
 
-            if len(team_wrappers) < take:
+            if len(teams) < take:
                 break
 
             skip += take
             time.sleep(0.2)
 
-        print("❌ Texas A&M team not found in Synergy team list.")
-        return None
+        raise RuntimeError(f"Team '{team_name}' not found in Synergy team list")
+
+    # --------------------------------------------------
+    # SEASONS
+    # --------------------------------------------------
+    def get_recent_seasons(self, years_back=6):
+        response = self.client.get_seasons(league_code="ncaamb")
+
+        seasons = []
+        for wrapper in response.get("data", []):
+            season = wrapper.get("data", wrapper)
+            seasons.append({
+                "id": season["id"],
+                "name": season.get("name"),
+            })
+
+        seasons.sort(key=lambda s: s["name"], reverse=True)
+        return seasons[:years_back]
 
     # --------------------------------------------------
     # INGESTION
     # --------------------------------------------------
-    def ingest_team_history(self, years_back=6):
+    def ingest_team_history(self, team_name, years_back=6):
+        team_id = self.resolve_team_id(team_name)
         seasons = self.get_recent_seasons(years_back)
-        team_id = self.find_texas_am_team_id()
 
-        total_games = 0
+        total = 0
 
         for season in seasons:
-            season_id = season["id"]
-            print(f"\n📅 Ingesting {season['name']}...")
+            print(f"\n📅 Ingesting {season['name']}")
 
             skip = 0
             take = 50
@@ -133,10 +156,10 @@ class SingleTeamIngester:
                 response = self.client._get(
                     "/ncaamb/games",
                     params={
-                        "seasonId": season_id,
+                        "seasonId": season["id"],
                         "teamId": team_id,
                         "take": take,
-                        "skip": skip,
+                        "skip": skip
                     }
                 )
 
@@ -146,8 +169,8 @@ class SingleTeamIngester:
 
                 for wrapper in games:
                     game = wrapper.get("data", wrapper)
-                    self.save_game_metadata(game, season_id)
-                    total_games += 1
+                    self.save_game_metadata(game, season["id"])
+                    total += 1
 
                 if len(games) < take:
                     break
@@ -155,17 +178,16 @@ class SingleTeamIngester:
                 skip += take
                 time.sleep(0.2)
 
-        print(f"\n🎉 Ingestion Complete: {total_games} Texas A&M games indexed")
+        print(f"\n🎉 Ingestion complete: {total} games indexed for {team_name}")
 
     # --------------------------------------------------
     # STORAGE
     # --------------------------------------------------
-    def save_game_metadata(self, game_data, season_id):
-        game_id = str(game_data.get("id"))
-
-        home = game_data.get("homeTeam", {}).get("name", "Unknown")
-        away = game_data.get("awayTeam", {}).get("name", "Unknown")
-        date = game_data.get("date") or game_data.get("scheduled")
+    def save_game_metadata(self, game, season_id):
+        game_id = str(game.get("id"))
+        home = game.get("homeTeam", {}).get("name", "Unknown")
+        away = game.get("awayTeam", {}).get("name", "Unknown")
+        date = game.get("date") or game.get("scheduled")
 
         description = f"{home} vs {away} on {date}"
 
@@ -174,24 +196,24 @@ class SingleTeamIngester:
             documents=[description],
             metadatas=[{
                 "season_id": season_id,
-                "game_date": date,
                 "home_team": home,
                 "away_team": away,
-                "status": game_data.get("status"),
-                "tags": "Texas A&M"
+                "game_date": date,
+                "status": game.get("status")
             }]
         )
 
 
 # --------------------------------------------------
-# CLI
+# CLI ENTRYPOINT
 # --------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="SKOUT Single Team Ingestion – Texas A&M Men's Basketball"
+        description="SKOUT – Interactive Single Team Ingestion (Men's NCAA Basketball)"
     )
     parser.add_argument("--history", type=int, default=6)
     args = parser.parse_args()
 
     ingester = SingleTeamIngester()
-    ingester.ingest_team_history(args.history)
+    team = ingester.interactive_select()
+    ingester.ingest_team_history(team, args.history)
