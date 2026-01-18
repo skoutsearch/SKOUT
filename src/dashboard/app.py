@@ -8,85 +8,77 @@ from transformers import CLIPProcessor, CLIPModel
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-# --- CONFIG ---
-st.set_page_config(page_title="SKOUT", layout="wide")
+st.set_page_config(page_title="SKOUT Local", layout="wide")
 DB_PATH = os.path.join(os.getcwd(), "data/vector_db")
+VIDEO_ROOT = os.path.join(os.getcwd(), "data/video_clips")
 
-# --- CACHED RESOURCES (Crucial for Speed) ---
+# --- CACHED RESOURCES ---
 @st.cache_resource
 def load_ai_model():
-    """Loads the AI Model once and keeps it in memory."""
-    print("🔄 Loading CLIP Model... (This happens only once)")
-    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+    print("🔄 Loading CLIP Model...")
+    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32", use_safetensors=True)
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
     return model, processor
 
 @st.cache_resource
 def load_db():
-    """Connects to the database once."""
-    print(f"🔄 Connecting to Database at {DB_PATH}")
     client = chromadb.PersistentClient(path=DB_PATH)
     return client.get_collection(name="skout_plays")
 
-# --- UI LOGIC ---
-st.title("🏀 SKOUT: Semantic Search")
+# --- APP UI ---
+st.title("🏀 SKOUT: Local Video Search")
 
-# 1. Load Resources (with visual feedback)
-with st.status("Initializing Engine...", expanded=True) as status:
-    st.write("🧠 Loading AI Model...")
-    model, processor = load_ai_model()
-    st.write("📂 Connecting to Database...")
-    collection = load_db()
-    status.update(label="Engine Ready!", state="complete", expanded=False)
+if not os.path.exists(VIDEO_ROOT):
+    st.error(f"Video folder not found at: {VIDEO_ROOT}")
+    st.stop()
 
-# 2. Search Bar
-query = st.text_input("Search for a moment:", "A happy dog")
+# Load Engine
+model, processor = load_ai_model()
+collection = load_db()
 
-if st.button("Search") or query:
+query = st.text_input("Scout for:", "A slam dunk")
+
+if query:
     st.divider()
     
-    # Debug Container
-    debug_box = st.empty()
-    debug_box.info(f"Processing query: '{query}'...")
+    # 1. Generate Vector
+    inputs = processor(text=[query], return_tensors="pt", padding=True)
+    with torch.no_grad():
+        text_features = model.get_text_features(**inputs)
+    search_vec = text_features[0].tolist()
 
-    try:
-        # Step A: Convert Text to Math
-        inputs = processor(text=[query], return_tensors="pt", padding=True)
-        with torch.no_grad():
-            text_features = model.get_text_features(**inputs)
-        search_vec = text_features[0].tolist()
-        debug_box.success("✅ AI Vector Generated")
+    # 2. Search DB
+    results = collection.query(
+        query_embeddings=[search_vec],
+        n_results=10 # Show top 10 matches
+    )
 
-        # Step B: Query Database
-        results = collection.query(
-            query_embeddings=[search_vec],
-            n_results=3
-        )
-        debug_box.success("✅ Database Query Complete")
-
-        # Step C: Display Results
-        if results['ids'] and results['ids'][0]:
-            st.success(f"Found {len(results['ids'][0])} matches:")
-            cols = st.columns(3)
-            for i, col in enumerate(cols):
-                if i < len(results['ids'][0]):
-                    # Get data
-                    img_path = results['metadatas'][0][i]['filepath']
-                    desc = results['metadatas'][0][i]['description']
-                    score = results['distances'][0][i]
-                    
-                    # Display
-                    with col:
-                        # Check if file exists before trying to show it
-                        if os.path.exists(img_path):
-                            st.image(img_path)
-                            st.subheader(desc)
-                            st.caption(f"Distance Score: {score:.4f}")
-                        else:
-                            st.error(f"Image missing: {img_path}")
-        else:
-            st.warning("No matches found in the database.")
+    if results['ids'] and results['ids'][0]:
+        for i in range(len(results['ids'][0])):
+            meta = results['metadatas'][0][i]
+            score = results['distances'][0][i]
             
-    except Exception as e:
-        st.error(f"💥 Error: {e}")
-        print(f"Error details: {e}")
+            video_filename = meta['source_video']
+            timestamp = int(meta['timestamp'])
+            full_video_path = os.path.join(VIDEO_ROOT, video_filename)
+
+            # 3. Render Result
+            with st.container():
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    # Streamlit video player supports 'start_time'
+                    if os.path.exists(full_video_path):
+                        st.video(full_video_path, start_time=timestamp)
+                    else:
+                        st.error(f"Video file missing: {video_filename}")
+                        
+                with col2:
+                    st.subheader(f"Match #{i+1}")
+                    st.caption(f"File: {video_filename}")
+                    st.caption(f"Time: {timestamp // 60}m {timestamp % 60}s")
+                    st.progress(max(0.0, 1.0 - score), text=f"Confidence: {score:.4f}")
+                
+                st.divider()
+    else:
+        st.warning("No matches found.")

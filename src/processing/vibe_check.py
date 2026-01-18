@@ -4,7 +4,7 @@ from PIL import Image
 
 # Load the model once (Global variable to avoid reloading it 100 times)
 print("🧠 Loading AI Model (CLIP)... this might take a minute...")
-model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32", use_safetensors=True)
 processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
 
 def get_text_embedding(text):
