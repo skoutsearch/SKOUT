@@ -23,10 +23,11 @@ class SynergyClient:
         Executes a GET request with strict 429 Rate Limit handling.
         """
         url = f"{self.base_url}{endpoint}"
+        print(f"  > Requesting URL: {url} with params: {params}")
         for attempt in range(retries):
             try:
                 response = requests.get(url, headers=self.headers, params=params)
-                
+                print(f"  < Status Code: {response.status_code}")
                 # 1. Handle Rate Limiting (429)
                 if response.status_code == 429:
                     wait_time = (attempt + 1) * 2.5 # Backoff: 2.5s, 5s, 7.5s...
