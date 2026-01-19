@@ -8,7 +8,6 @@ import base64
 from datetime import datetime
 
 # --- PATH CONFIGURATION ---
-# We use absolute paths to ensure stability on Streamlit Cloud
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '../../'))
 sys.path.append(PROJECT_ROOT) 
@@ -39,7 +38,7 @@ st.set_page_config(
     initial_sidebar_state="expanded" 
 )
 
-# --- CUSTOM CSS (DARK MODE, BRANDING, & HERO CARD) ---
+# --- CUSTOM CSS ---
 def get_base64_image(image_path):
     if not os.path.exists(image_path): return ""
     with open(image_path, "rb") as img_file:
@@ -67,21 +66,18 @@ def inject_custom_css():
             font-family: 'Inter', sans-serif;
         }}
         
-        /* SIDEBAR */
         section[data-testid="stSidebar"] {{
             background-color: rgba(15, 23, 42, 0.8);
             border-right: 1px solid rgba(255, 255, 255, 0.1);
         }}
         
-        /* INPUTS */
-        .stTextInput > div > div > input, .stSelectbox > div > div > div {{
+        .stTextInput > div > div > input, .stSelectbox > div > div > div, .stMultiSelect > div > div > div {{
             background-color: rgba(30, 41, 59, 0.6);
             color: white;
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 8px;
         }}
         
-        /* CARDS */
         .streamlit-expanderHeader {{
             background-color: rgba(30, 41, 59, 0.4) !important;
             border: 1px solid rgba(255, 255, 255, 0.05);
@@ -96,7 +92,6 @@ def inject_custom_css():
             border-top: none;
         }}
         
-        /* HERO INSTRUCTION CARD */
         .hero-card {{
             background: rgba(30, 41, 59, 0.5);
             backdrop-filter: blur(10px);
@@ -134,18 +129,19 @@ def inject_custom_css():
 
 inject_custom_css()
 
-# --- BACKEND ---
+# --- BACKEND FUNCTIONS ---
 @st.cache_resource
 def get_chroma_client():
-    # If on cloud and DB folder missing, return None to trigger instructions
     if not os.path.exists(VECTOR_DB_PATH): return None
     
-    # Fix for Streamlit Cloud SQLite version issues
+    # --- CLOUD DEPLOYMENT FIX: Patch SQLite ---
+    # Streamlit Cloud uses an old SQLite version incompatible with Chroma.
+    # We patch it with pysqlite3-binary.
     try:
         __import__('pysqlite3')
         sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
     except ImportError:
-        pass
+        pass # Not on cloud or library missing
         
     return chromadb.PersistentClient(path=VECTOR_DB_PATH)
 
@@ -229,24 +225,34 @@ def search_plays(query, selected_tags, selected_teams, year_range, n_results=50)
     conn.close()
     return parsed
 
-# --- SIDEBAR ---
+# --- SIDEBAR CONTENT ---
 if os.path.exists(LOGO_PATH):
     st.sidebar.image(LOGO_PATH, use_container_width=True)
 else:
     st.sidebar.title("SKOUT 🏀")
 
 st.sidebar.markdown("### 🔎 Filters")
+
+# 1. Division
 sel_div = st.sidebar.selectbox("Division", ["All"] + list(LEAGUE_STRUCTURE.keys()), index=1)
 
+# 2. Conference (FIXED LOGIC)
 available_conferences = []
 if sel_div != "All":
     available_conferences = list(LEAGUE_STRUCTURE[sel_div].keys())
-sel_conf = st.sidebar.selectbox("Conference", ["All"] + sorted(available_conferences), index=1)
 
+conf_options = ["All"] + sorted(available_conferences)
+# If only "All" exists (length 1), force index 0. Otherwise try 1.
+safe_conf_index = 1 if len(conf_options) > 1 else 0
+
+sel_conf = st.sidebar.selectbox("Conference", conf_options, index=safe_conf_index)
+
+# 3. Team
 available_teams = []
 if sel_conf != "All" and sel_div != "All":
     available_teams = LEAGUE_STRUCTURE[sel_div][sel_conf]
 elif sel_div != "All":
+    # Flatten everything in the division
     for conf_teams in LEAGUE_STRUCTURE[sel_div].values():
         available_teams.extend(conf_teams)
 
@@ -256,7 +262,7 @@ sel_years = st.sidebar.slider("Season", 2020, datetime.now().year, (2020, dateti
 # --- MAIN CONTENT ---
 st.title("SKOUT | Recruitment Engine")
 
-# CHECK DATABASE STATUS
+# CHECK DB
 db_exists = os.path.exists(DB_PATH)
 if db_exists:
     conn = sqlite3.connect(DB_PATH)
@@ -266,38 +272,37 @@ if db_exists:
 else:
     game_count = 0
 
-# --- HERO INSTRUCTIONS (THE "UP TOP" VISUAL) ---
+# --- HERO INSTRUCTIONS ---
 if game_count == 0:
     st.markdown("""
-    <div class="hero-card">
-        <h2 style="font-weight: 800; font-size: 2.2rem; margin-bottom: 10px;">👋 Welcome to SKOUT</h2>
-        <p style="color: #cbd5e1 !important; font-size: 1.1rem; max-width: 600px; margin: 0 auto;">
-            Your recruitment engine is online. The database is currently empty. <br>
-            Follow these three steps to initialize the system.
-        </p>
-        
-        <div class="step-container">
-            <div class="step-box">
-                <div class="step-icon">🔑</div>
-                <div class="step-title">1. Credentials</div>
-                <div class="step-desc">Go to <b>Admin Settings</b> and enter your Synergy API Key.</div>
-            </div>
-            <div class="step-box">
-                <div class="step-icon">⬇️</div>
-                <div class="step-title">2. Ingest</div>
-                <div class="step-desc">Click <b>Sync Schedule</b> and then <b>Sync Plays</b>.</div>
-            </div>
-            <div class="step-box">
-                <div class="step-icon">🧠</div>
-                <div class="step-title">3. Index</div>
-                <div class="step-desc">Click <b>Build AI Index</b> to activate semantic search.</div>
-            </div>
+<div class="hero-card">
+    <h2 style="font-weight: 800; font-size: 2.2rem; margin-bottom: 10px;">👋 Welcome to SKOUT</h2>
+    <p style="color: #cbd5e1 !important; font-size: 1.1rem; max-width: 600px; margin: 0 auto;">
+        Your recruitment engine is online. The database is currently empty. <br>
+        Follow these three steps to initialize the system.
+    </p>
+    <div class="step-container">
+        <div class="step-box">
+            <div class="step-icon">🔑</div>
+            <div class="step-title">1. Credentials</div>
+            <div class="step-desc">Go to <b>Admin Settings</b> and enter your Synergy API Key.</div>
+        </div>
+        <div class="step-box">
+            <div class="step-icon">⬇️</div>
+            <div class="step-title">2. Ingest</div>
+            <div class="step-desc">Click <b>Sync Schedule</b> and then <b>Sync Plays</b>.</div>
+        </div>
+        <div class="step-box">
+            <div class="step-icon">🧠</div>
+            <div class="step-title">3. Index</div>
+            <div class="step-desc">Click <b>Build AI Index</b> to activate semantic search.</div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
-    st.stop() # Stop rendering the search UI until setup is done
+</div>
+""", unsafe_allow_html=True)
+    st.stop()
 
-# --- SEARCH INTERFACE ---
+# --- SEARCH ---
 col1, col2 = st.columns([3, 1])
 with col1:
     search_query = st.text_input("Semantic Search", placeholder="e.g. 'Freshman turnovers', 'Pick and roll lob'")
