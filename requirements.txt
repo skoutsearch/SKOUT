@@ -1,11 +1,7 @@
-python-dotenv
+streamlit
+pandas
 requests
 python-dotenv
-pandas
-streamlit
-datetime
-torch
-transformers
-opencv-python
-pillow
 chromadb
+sentence-transformers
+pysqlite3-binary  # Required for ChromaDB on cloud servers

@@ -8,6 +8,7 @@ import base64
 from datetime import datetime
 
 # --- PATH CONFIGURATION ---
+# We use absolute paths to ensure stability on Streamlit Cloud
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '../../'))
 sys.path.append(PROJECT_ROOT) 
@@ -87,6 +88,13 @@ def inject_custom_css():
             border-radius: 8px;
             color: white !important;
         }}
+        .streamlit-expanderContent {{
+            background-color: rgba(15, 23, 42, 0.4) !important;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-top: none;
+        }}
         
         /* HERO INSTRUCTION CARD */
         .hero-card {{
@@ -129,7 +137,16 @@ inject_custom_css()
 # --- BACKEND ---
 @st.cache_resource
 def get_chroma_client():
+    # If on cloud and DB folder missing, return None to trigger instructions
     if not os.path.exists(VECTOR_DB_PATH): return None
+    
+    # Fix for Streamlit Cloud SQLite version issues
+    try:
+        __import__('pysqlite3')
+        sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+    except ImportError:
+        pass
+        
     return chromadb.PersistentClient(path=VECTOR_DB_PATH)
 
 def get_database_connection():

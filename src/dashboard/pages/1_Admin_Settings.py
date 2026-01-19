@@ -1,57 +1,68 @@
 import streamlit as st
 import os
 import sys
-import threading
 import subprocess
+from dotenv import load_dotenv
 
 # Add project root
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '../../../'))
+sys.path.append(PROJECT_ROOT)
 
 st.set_page_config(page_title="SKOUT Admin", layout="wide", page_icon="⚙️")
 
-ENV_PATH = os.path.join(os.getcwd(), ".env")
+ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
 
-def save_api_key(key):
-    """Writes the API key to the .env file."""
+def save_local_api_key(key):
+    """Writes the API key to the .env file (Local Dev Only)."""
     with open(ENV_PATH, "w") as f:
         f.write(f"SYNERGY_API_KEY={key}\n")
-    os.environ["SYNERGY_API_KEY"] = key # Update current session
-    st.toast("API Key Saved Successfully!", icon="✅")
+    os.environ["SYNERGY_API_KEY"] = key 
+    st.toast("API Key Saved Locally!", icon="✅")
 
 def run_ingestion_script(script_name):
     """Runs a python script as a subprocess."""
-    script_path = os.path.join(os.getcwd(), "src", script_name)
+    script_path = os.path.join(PROJECT_ROOT, "src", script_name)
     try:
-        result = subprocess.run([sys.executable, script_path], capture_output=True, text=True)
-        return result.stdout
+        # We pass the current environment to the subprocess so it inherits secrets/env vars
+        result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, env=os.environ)
+        return result.stdout + "\n" + result.stderr
     except Exception as e:
         return str(e)
+
+# --- LOAD SECRETS ---
+# 1. Try Streamlit Cloud Secrets
+cloud_key = st.secrets.get("SYNERGY_API_KEY", None)
+
+# 2. Try Local .env
+if not cloud_key:
+    load_dotenv(ENV_PATH)
+    local_key = os.getenv("SYNERGY_API_KEY", "")
+else:
+    local_key = cloud_key
 
 st.title("⚙️ System Configuration")
 st.markdown("Manage your Synergy Data connection and database status.")
 
 # --- SECTION 1: API CREDENTIALS ---
 st.subheader("1. Synergy API Connection")
-current_key = os.getenv("SYNERGY_API_KEY", "")
 
-with st.form("api_key_form"):
-    user_key = st.text_input("Enter Synergy API Key", value=current_key, type="password")
-    submit = st.form_submit_button("Save Credentials")
-    
-    if submit:
-        save_api_key(user_key)
-        st.rerun()
-
-if current_key:
-    st.success("System is connected to Synergy Sports API.")
+if cloud_key:
+    st.success("✅ Connected via Streamlit Cloud Secrets (Read-Only)")
+    st.info("To change this key, update your settings in the Streamlit Cloud dashboard.")
 else:
-    st.error("System is disconnected. Please enter a key.")
+    with st.form("api_key_form"):
+        user_key = st.text_input("Enter Synergy API Key", value=local_key, type="password")
+        submit = st.form_submit_button("Save Credentials")
+        
+        if submit:
+            save_local_api_key(user_key)
+            st.rerun()
 
 st.divider()
 
 # --- SECTION 2: DATA INGESTION ---
 st.subheader("2. Data Pipeline")
-st.caption("Trigger data updates manually. In production, this runs automatically overnight.")
 
 col1, col2, col3 = st.columns(3)
 
