@@ -214,15 +214,18 @@ else:
     st.sidebar.title("SKOUT 🏀")
 
 st.sidebar.markdown("### 🔎 Filters")
+
+# 1. Division
 sel_div = st.sidebar.selectbox("Division", ["All"] + list(LEAGUE_STRUCTURE.keys()), index=1)
 
+# 2. Conference
 available_conferences = []
-# --- FIX: Variable name corrected below ---
-if sel_div != "All":
+if sel_div != "All":  # <--- FIXED VARIABLE NAME HERE
     available_conferences = list(LEAGUE_STRUCTURE[sel_div].keys())
     
 sel_conf = st.sidebar.selectbox("Conference", ["All"] + sorted(available_conferences), index=1)
 
+# 3. Team
 available_teams = []
 if sel_conf != "All" and sel_div != "All":
     available_teams = LEAGUE_STRUCTURE[sel_div][sel_conf]
