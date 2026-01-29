@@ -12,9 +12,11 @@ source "$HOME/.venvs/PortalRecruit/bin/activate"
 python -m pip install -U pip
 ```
 
-### Install dependencies (ML stack is core)
+## Install dependencies (ML stack is core)
 
 This project uses `sentence-transformers`, which depends on **PyTorch**.
+
+### CPU (default)
 
 If you install `torch` from PyPI on Linux it may pull CUDA wheels and can be **~1GB+**.
 For most dev workflows here, **CPU torch** is sufficient.
@@ -26,12 +28,36 @@ pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision t
 pip install -r requirements.txt
 ```
 
-If you need GPU/CUDA torch, install it manually following PyTorch’s official instructions.
+### GPU / CUDA
+
+Install GPU torch following PyTorch’s official instructions for your CUDA version:
+
+- https://pytorch.org/get-started/locally/
+
+Then install project requirements:
+
+```bash
+pip install -r requirements.txt
+```
 
 ## One-command bootstrap
 
+CPU:
+
 ```bash
 ./scripts/bootstrap_local.sh
+```
+
+GPU (expects you already installed CUDA-enabled torch):
+
+```bash
+./scripts/bootstrap_gpu.sh
+```
+
+## Doctor (sanity checks)
+
+```bash
+python scripts/doctor.py
 ```
 
 ## Run
