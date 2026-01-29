@@ -12,24 +12,26 @@ source "$HOME/.venvs/PortalRecruit/bin/activate"
 python -m pip install -U pip
 ```
 
-### Install dependencies
+### Install dependencies (ML stack is core)
 
-Full install (includes embeddings stack, can be very large due to `torch`):
+This project uses `sentence-transformers`, which depends on **PyTorch**.
+
+If you install `torch` from PyPI on Linux it may pull CUDA wheels and can be **~1GB+**.
+For most dev workflows here, **CPU torch** is sufficient.
+
+Recommended:
 
 ```bash
+pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio
 pip install -r requirements.txt
 ```
 
-Lighter install (no embeddings/transformers/torch downloads):
+If you need GPU/CUDA torch, install it manually following PyTorch’s official instructions.
+
+## One-command bootstrap
 
 ```bash
-pip install -r requirements.base.txt
-```
-
-Enable embeddings features:
-
-```bash
-pip install -r requirements.ml.txt
+./scripts/bootstrap_local.sh
 ```
 
 ## Run

@@ -9,7 +9,7 @@ PIP  := $(VENV)/bin/pip
 help:
 	@echo "Targets:"
 	@echo "  venv       - create venv at $(VENV) using python3.13 (skips if exists)"
-	@echo "  install    - install python deps into venv"
+	@echo "  install    - install deps (installs CPU torch first to avoid huge CUDA downloads)"
 	@echo "  run        - run run_portalrecruit.py"
 	@echo "  dashboard  - run streamlit dashboard"
 	@echo "  test       - run pytest (if present)"
@@ -24,6 +24,8 @@ venv:
 	"$(PIP)" install -U pip
 
 install: venv
+	# CPU wheels prevent pulling ~1GB CUDA packages by default.
+	"$(PIP)" install --index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio
 	"$(PIP)" install -r requirements.txt
 
 run:
