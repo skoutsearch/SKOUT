@@ -91,15 +91,17 @@ class SynergyClient:
         params = {"seasonId": season_id, "take": 500} 
         return self._get(f"/{league_code}/teams", params=params)
 
-    def get_games(self, league_code, season_id, team_id=None, limit=20):
+    def get_games(self, league_code, season_id, team_id=None, limit=20, skip: int | None = None):
         # Spec: GET /{league}/games
         params = {
             "seasonId": season_id,
-            "take": limit
+            "take": limit,
         }
+        if skip is not None:
+            params["skip"] = skip
         if team_id:
-            params["teamId"] = team_id # Spec
-            
+            params["teamId"] = team_id
+
         return self._get(f"/{league_code}/games", params=params)
 
     def get_game_events(self, league_code, game_id):

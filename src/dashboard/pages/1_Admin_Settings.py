@@ -122,16 +122,74 @@ if report:
             f"**Teams endpoint:** {'✅' if teams_ok else '❌'} | **Games endpoint:** {'✅' if games_ok else '❌'}"
         )
 
+        selected_team_ids: list[str] = []
         if teams_ok and teams:
             team_names = [t.name for t in teams]
-            selected_teams = st.multiselect("Teams (optional)", team_names, default=[])
+            team_id_by_name = {t.name: t.id for t in teams}
+
+            selected_team_names = st.multiselect("Teams (optional)", team_names, default=[])
+            selected_team_ids = [team_id_by_name[n] for n in selected_team_names]
+
             st.caption(
-                "Next: we'll use this selection to ingest schedule/events/videos + auto-build embeddings in one click."
+                "Next: run an end-to-end pipeline: schedule → events → (later: videos) → auto index."
             )
         elif teams_ok:
             st.info("Teams endpoint works, but no teams were returned for this season.")
         else:
             st.info("Teams list not available for this season with your current key.")
+
+        st.markdown("---")
+        st.subheader("Run Pipeline")
+        st.caption("This is the new one-click path. It will replace the legacy buttons once stabilized.")
+
+        ingest_events = st.toggle("Ingest Play-by-Play Events", value=True)
+
+        from src.ingestion.pipeline import PipelinePlan, run_pipeline  # noqa: E402
+
+        if st.button("Run Pipeline Now", type="primary"):
+            if not api_key_for_scan:
+                st.error("No API key available.")
+            else:
+                prog = st.progress(0)
+                status = st.status("Starting pipeline...", expanded=True)
+
+                def _cb(step: str, info: dict):
+                    if step == "schedule:start":
+                        status.update(label="Ingesting schedule...", state="running")
+                        prog.progress(10)
+                    elif step == "schedule:done":
+                        status.write(f"✅ Schedule cached: {info.get('inserted_games', 0)} games")
+                        prog.progress(45)
+                    elif step == "events:start":
+                        status.update(label="Ingesting events...", state="running")
+                        prog.progress(55)
+                    elif step == "events:progress":
+                        cur = info.get("current", 0)
+                        total = max(1, info.get("total", 1))
+                        # map 55..90
+                        pct = 55 + int(35 * (cur / total))
+                        prog.progress(min(90, max(55, pct)))
+                    elif step == "events:done":
+                        status.write(f"✅ Events cached: {info.get('inserted_plays', 0)} plays")
+                        prog.progress(95)
+
+                plan = PipelinePlan(
+                    league_code="ncaamb",
+                    season_id=chosen_season_id,
+                    team_ids=selected_team_ids,
+                    ingest_events=ingest_events,
+                )
+
+                try:
+                    result = run_pipeline(plan=plan, api_key=api_key_for_scan, progress_cb=_cb)
+                    status.update(label="Pipeline complete", state="complete")
+                    prog.progress(100)
+                    st.success(
+                        f"Done. Games: {result['inserted_games']}, Plays: {result['inserted_plays']}"
+                    )
+                except Exception as e:
+                    status.update(label="Pipeline failed", state="error")
+                    st.exception(e)
 
     else:
         st.info("No seasons discovered yet. Your key may not allow listing seasons.")
