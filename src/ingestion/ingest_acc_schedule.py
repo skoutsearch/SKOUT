@@ -15,10 +15,14 @@ from src.ingestion.synergy_client import SynergyClient
 
 # Defaults (only used if no discovery data is available)
 DEFAULT_SEASON_ID = "6085b5d0e6c2413bc4ba9122"  # legacy guess: 2021-2022
-DB_PATH = os.path.join(os.getcwd(), "data/skout.db")
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+DB_PATH = os.path.join(PROJECT_ROOT, "data", "skout.db")
+
 
 def setup_db():
     """Ensures the games table exists."""
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
