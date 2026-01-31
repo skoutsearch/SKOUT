@@ -18,7 +18,7 @@ def run_app():
 
 if __name__ == "__main__":
     print("\n------------------------------------------------")
-    print("   🚀 STARTING SKOUT INTELLIGENCE SYSTEM")
+    print("   🚀 STARTING PORTALRECRUIT")
     print("------------------------------------------------")
 
     # 1. Start Landing Page (Marketing Site)

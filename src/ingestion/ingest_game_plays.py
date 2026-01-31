@@ -104,7 +104,7 @@ class GamePlayIngester:
 # --------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="SKOUT – Game Play Ingestion (Synergy NCAA)"
+        description="PortalRecruit – Game Play Ingestion (Synergy NCAA)"
     )
     parser.add_argument("--game-id", required=True)
     args = parser.parse_args()

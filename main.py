@@ -1,6 +1,6 @@
 
 if __name__ == "__main__":
-    print("Starting SKOUT Engine...")
+    print("Starting PortalRecruit Engine...")
     # client = SynergyClient()
 
 # Sanity Check

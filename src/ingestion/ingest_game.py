@@ -216,7 +216,7 @@ class GameIngester:
         return events
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="SKOUT API Ingestion Engine")
+    parser = argparse.ArgumentParser(description="PortalRecruit API Ingestion Engine")
     parser.add_argument("--year", type=int, help="Target Season Year (e.g. 2024)", default=2024)
     parser.add_argument("--game_id", type=str, help="Specific Game ID to pull events for")
     

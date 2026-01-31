@@ -38,7 +38,7 @@ sample_data = [
 print("🚀 Starting Database Seed...")
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SKOUT-Bot/1.0"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) PortalRecruit-Bot/1.0"
 }
 
 for item in sample_data:

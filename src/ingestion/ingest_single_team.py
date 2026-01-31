@@ -209,7 +209,7 @@ class SingleTeamIngester:
 # --------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="SKOUT – Interactive Single Team Ingestion (Men's NCAA Basketball)"
+        description="PortalRecruit – Interactive Single Team Ingestion (Men's NCAA Basketball)"
     )
     parser.add_argument("--history", type=int, default=6)
     args = parser.parse_args()

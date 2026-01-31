@@ -106,7 +106,7 @@ class PlayVideoIngester:
 # --------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="SKOUT – Play to Video Ingestion (Synergy NCAA)"
+        description="PortalRecruit – Play to Video Ingestion (Synergy NCAA)"
     )
     parser.add_argument(
         "--limit",

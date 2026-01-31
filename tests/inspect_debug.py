@@ -4,7 +4,8 @@ import json
 from dotenv import load_dotenv
 
 # Load env vars
-load_dotenv("/media/jch903/fidelio/SKOUT/.env")
+ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+load_dotenv(ENV_PATH)
 
 SEASON_ID = "6085b5d0e6c2413bc4ba9122" # 2021-22
 API_KEY = os.getenv("SYNERGY_API_KEY")

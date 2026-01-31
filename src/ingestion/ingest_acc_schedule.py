@@ -5,7 +5,8 @@ import sqlite3
 from dotenv import load_dotenv
 
 # 1. Load Environment Variables
-load_dotenv("/media/jch903/fidelio/SKOUT/.env")
+ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..", ".env"))
+load_dotenv(ENV_PATH)
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))

@@ -4,7 +4,9 @@ import sqlite3
 import time
 from dotenv import load_dotenv
 
-load_dotenv("/media/jch903/fidelio/SKOUT/.env")
+# Load environment variables from project root .env (works locally and on Streamlit Cloud)
+ENV_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..", ".env"))
+load_dotenv(ENV_PATH)
 
 DB_PATH = os.path.join(os.getcwd(), "data/skout.db")
 API_KEY = os.getenv("SYNERGY_API_KEY")
