@@ -119,15 +119,30 @@ if report:
         games_ok = report.games_accessible.get(chosen_season_id, False)
 
         st.markdown(
-            f"**Teams endpoint:** {'✅' if teams_ok else '❌'} | **Games endpoint:** {'✅' if games_ok else '❌'}"
+            f"**Teams list:** {'✅ available' if teams_ok else '❌ not available'} | **Games:** {'✅ available' if games_ok else '❌ not available'}"
         )
 
         selected_team_ids: list[str] = []
         if teams_ok and teams:
-            team_names = [t.name for t in teams]
-            team_id_by_name = {t.name: t.id for t in teams}
+            # Sort teams so "unknown conference" is last; keep it readable for non-technical users.
+            teams_sorted = sorted(
+                teams,
+                key=lambda t: (
+                    (t.conference or "").lower() in {"unknown conference"},
+                    (t.conference or "").lower(),
+                    t.name.lower(),
+                ),
+            )
 
-            selected_team_names = st.multiselect("Teams (optional)", team_names, default=[])
+            team_names = [t.name for t in teams_sorted]
+            team_id_by_name = {t.name: t.id for t in teams_sorted}
+
+            selected_team_names = st.multiselect(
+                "Teams (optional)",
+                team_names,
+                default=[],
+                help="Tip: If you're unsure, leave this blank to ingest everything available for the season.",
+            )
             selected_team_ids = [team_id_by_name[n] for n in selected_team_names]
 
             st.caption(

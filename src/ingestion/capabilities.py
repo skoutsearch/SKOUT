@@ -86,7 +86,13 @@ def _as_team(obj: Any) -> Team | None:
     else:
         conf_name = conf
 
-    conference = str(conf_name) if conf_name else None
+    # Normalize conference into layman's terms
+    conference_raw = str(conf_name).strip() if conf_name is not None else ""
+    if conference_raw.lower() in {"", "tbd", "unknown", "none", "null"}:
+        conference = "Unknown conference"
+    else:
+        conference = conference_raw
+
     return Team(id=tid, name=name, conference=conference)
 
 
