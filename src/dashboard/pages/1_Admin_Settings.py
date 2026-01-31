@@ -121,6 +121,8 @@ if report:
         st.markdown(
             f"**Teams list:** {'✅ available' if teams_ok else '❌ not available'} | **Games:** {'✅ available' if games_ok else '❌ not available'}"
         )
+        if teams_ok and teams:
+            st.caption(f"Discovered {len(teams)} teams for this season.")
 
         selected_team_ids: list[str] = []
         if teams_ok and teams:
@@ -134,16 +136,42 @@ if report:
                 ),
             )
 
-            team_names = [t.name for t in teams_sorted]
-            team_id_by_name = {t.name: t.id for t in teams_sorted}
+            import re
 
-            selected_team_names = st.multiselect(
+            def _pretty_team_name(name: str) -> str:
+                # Turn CamelCase-without-spaces into words (e.g., "VirginiaTech" -> "Virginia Tech")
+                n = (name or "").strip()
+                if " " not in n and re.search(r"[a-z][A-Z]", n):
+                    n = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", n)
+                # Collapse repeated whitespace
+                n = re.sub(r"\s+", " ", n).strip()
+                return n
+
+            # Build stable, de-duped option labels.
+            # Use IDs for mapping; label includes conference for readability.
+            options: list[tuple[str, str]] = []
+            seen_labels: set[str] = set()
+            for t in teams_sorted:
+                pretty = _pretty_team_name(t.name)
+                conf = (t.conference or "").strip()
+                label = f"{conf} — {pretty}" if conf and conf.lower() != "unknown conference" else pretty
+
+                # If two teams collide on the same label, disambiguate (rare but possible)
+                if label in seen_labels:
+                    label = f"{label} ({t.id})"
+                seen_labels.add(label)
+                options.append((label, t.id))
+
+            option_labels = [lbl for (lbl, _tid) in options]
+            team_id_by_label = {lbl: tid for (lbl, tid) in options}
+
+            selected_labels = st.multiselect(
                 "Teams (optional)",
-                team_names,
+                option_labels,
                 default=[],
                 help="Tip: If you're unsure, leave this blank to ingest everything available for the season.",
             )
-            selected_team_ids = [team_id_by_name[n] for n in selected_team_names]
+            selected_team_ids = [team_id_by_label[lbl] for lbl in selected_labels]
 
             st.caption(
                 "Next: run an end-to-end pipeline: schedule → events → (later: videos) → auto index."
